@@ -1,0 +1,104 @@
+name: Build and Release
+
+on:
+  workflow_run:
+    workflows: ['kpress-tauri-ci']
+    types:
+      - completed
+
+jobs:
+  build-matrix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    name: Build on ${{ matrix.os }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Install Rust & Cargo
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Build the project
+        run: pnpm run build
+
+      - name: Install Tauri dependencies
+        run: pnpm run tauri deps
+
+      - name: Build Tauri App (Linux/macOS/Windows)
+        run: pnpm run tauri build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: tauri-build-${{ matrix.os }}
+          path: |
+            src-tauri/target/release/bundle/
+
+  release:
+    runs-on: ubuntu-latest
+    needs: build-matrix
+
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: artifacts
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: "Release v${{ github.run_number }}"
+          body: "Automated Release for version ${{ github.run_number }}"
+          draft: false
+          prerelease: false
+
+      - name: Upload Linux Package
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/tauri-build-ubuntu-latest/*.deb
+          asset_name: app-linux.deb
+          asset_content_type: application/vnd.debian.binary-package
+
+      - name: Upload macOS DMG
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/tauri-build-macos-latest/*.dmg
+          asset_name: app-macos.dmg
+          asset_content_type: application/x-apple-diskimage
+
+      - name: Upload Windows EXE
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/tauri-build-windows-latest/*.exe
+          asset_name: app-windows.exe
+          asset_content_type: application/vnd.microsoft.portable-executable
