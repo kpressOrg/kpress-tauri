@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import api from '@/apis'
+
 const router = useRouter()
 const form = ref({
   username: '',
@@ -15,7 +16,8 @@ const register = async () => {
     form.value.password = ''
     router.push({ name: 'login' })
   } catch (error) {
-    if (error.response.data.message == "Username already exists") {
+    const err = error as { response: { data: { message: string } } }
+    if (err.response.data.message == "Username already exists") {
       alert('Username already exists')
     } else {
       alert('Registration failed')
