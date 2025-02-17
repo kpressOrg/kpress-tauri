@@ -15,8 +15,49 @@ jobs:
     strategy:
       matrix:
         node-version: [22.x]
+        rust: [stable]
+        platform:
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
 
     steps:
+      - uses: actions/checkout@v4
+
+      - name: install Rust ${{ matrix.rust }}
+        uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ matrix.rust }}
+          components: rust-src
+          targets: ${{ matrix.platform.target }}
+
+      - name: setup python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          architecture: x64
+
+      - name: install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            webkit2gtk-4.1 libayatana-appindicator3-dev \
+            wslu \
+            lynx \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            xvfb \
+            at-spi2-core
+          wget https://github.com/sharkdp/hyperfine/releases/download/v1.18.0/hyperfine_1.18.0_amd64.deb
+          sudo dpkg -i hyperfine_1.18.0_amd64.deb
+          pip install memory_profiler
+
       - uses: pnpm/action-setup@v4
         with:
           version: 8
@@ -27,6 +68,5 @@ jobs:
           node-version: ${{ matrix.node-version }}
           cache: 'pnpm'
       - run: pnpm install
-      - run: pnpm build
       - run: pnpm tauri build
       - run: pnpm tauri bundle

@@ -9,12 +9,17 @@ const form = ref({
 const register = async () => {
   try {
     const response = await api.auth.register(form.value)
+
     alert('Registration successful')
     form.value.username = ''
     form.value.password = ''
     router.push({ name: 'login' })
   } catch (error) {
-    console.error('Registration failed:', error)
+    if (error.response.data.message == "Username already exists") {
+      alert('Username already exists')
+    } else {
+      alert('Registration failed')
+    }
   }
 }
 </script>
